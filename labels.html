@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<!--
+* Label-O-Matic.html
+* An easy way to make your spreadsheet into 5160-sized labels using only HTML, CSS, and Javascript
+*
+* Copyright (C) 2013-2014 Mike Teehan <mteehan@tocr.com>
+*
+* Label-O-Matic is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* Label-O-Matic is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+*
+* See the GNU General Public License for more details.
+* License: http://www.gnu.org/licenses/gpl.html GPL version 3 or higher
+*
+* Trademark symbols are not necessarity indicative of actual trademarks if they are funny.
+-->
+<html>
+	<head>
+		<title>Label-O-Matic&trade;</title>
+		<link rel="shortcut icon" href="/tocrfavicon.png" />
+		<style>
+body {
+	margin: 0px;
+	font-family: "Times New Roman";
+}
+#inputdiv {
+	margin: 0mm .4in 0mm .4in;
+}
+#contentdiv {
+	width: 8.5in;
+	margin: 0in .1875in;
+}
+#instructiondiv {
+	margin: .6in .4in .75in .4in;
+}
+.fake-button {
+	border-style: solid;
+	border-width: 1px;
+	text-align: center;
+	background-color: #EDEDED;
+	padding: 0 .5em;
+}
+.label {
+	width: 2.025in;
+	height: .875in;
+	padding: .125in .3in 0;
+	margin-right: .125in;
+	float: left;
+	text-align: left;
+	overflow: hidden;
+	outline: 1px dotted;
+}
+.label-wrapper {
+	position: relative;
+	float: left;
+	display: block;
+	margin: 0;
+	padding: 0;
+}
+.size-control-div {
+	position: absolute;
+	opacity: 0.2;
+	top: 3px;
+	left: 0px;
+	float: left;
+}
+.size-control-button {
+	width: 30px;
+	height: 30px;
+}
+.page-break  {
+	padding-top: 5px;
+	clear: left;
+	display: block;
+	page-break-after: always;
+}
+table.inputdiv {
+	width: 100%;
+}
+.input-textarea {
+	height: 4in;
+	width: 100%;
+}
+.full-column {
+	height: 4in;
+	width: 18%;
+}
+.spacer-column {
+	width: 5%;
+	text-align: center;
+}
+.tiny-column {
+	width: 36px;
+}
+.append-button {
+	width: 32px;
+	height: 32px;
+	text-align: center;
+	margin-left: 6px;
+}
+@page {
+	size: auto;
+	margin: .6in 0mm 0mm 0mm;
+}
+@media print {
+	hr, .no-print, .no-print * {
+		display: none !important;
+	}
+	.label {
+		outline: none !important;
+	}
+}
+		</style>
+		<script src='//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js'></script>
+		<script>
+function isNumber(n) {
+	return !isNaN(parseFloat(n)) && isFinite(n);
+}
+
+jQuery(document).ready(function($) {
+	var $inputdiv = $("#inputdiv").addClass("no-print"),
+		$instructiondiv = $("#instructiondiv"),
+		$contentdiv = $('#contentdiv'),
+		$fdata = $('#fdata'),
+		$ldata = $('#ldata'),
+		$sdata = $('#sdata'),
+		$cszdata = $('#cszdata'),
+		$idata = $('#idata'),
+		$clearbtn = $('#clear-button'),
+		$addbtn = $('#add-button'),
+		$genbtn = $('#generate-button'),
+		$uselast = $('#checkbox-use-lastname'),
+		$skip1st = $('#checkbox-skip-1st'),
+		$blanks = $('#blanks'),
+		$fontsize = $('#fontsize');
+
+	$inputdiv.find('textarea').on('scroll', function(event) {
+		var st = $(this).prop('scrollTop');
+		$inputdiv.find('textarea').prop('scrollTop', st);
+	});
+
+	$clearbtn.on('click', function(event) {
+		$cszdata.val("");
+		return false;
+	});
+
+	$addbtn.on('click', function(event) {
+		var addarray = $idata.val().trim().split('\n');
+		var cszarray = $cszdata.val().split('\n');
+		var cnt = addarray.length;
+		var spacer = (cszarray.length == cnt) ? " " : "";
+		for(var i = 0; i < cnt; i++) {
+			var e = addarray[i];
+			cszarray[i] = cszarray[i] || "";
+			if(isNumber(e) ) {
+				if(e.length < 5 && e.length > 0)
+					e = Array(6 - e.length).join("0") + e;
+				cszarray[i] += spacer + e;
+			} else {
+				var separator = (spacer.length == 0 || cszarray[i].length == 0) ? "" : ", ";
+				cszarray[i] += separator + e;
+			}
+		}
+		$cszdata.val(cszarray.join('\n'));
+		$idata.val("");
+	});
+	
+	$genbtn.on('click', function() {
+		$contentdiv.html("");
+		$instructiondiv.addClass("no-print");
+		var frows = textarea_to_array($fdata);
+		var lrows = textarea_to_array($ldata);
+		var srows = textarea_to_array($sdata);
+		var crows = textarea_to_array($cszdata);
+		numrows = frows.length;
+		if( (lrows.length !== numrows && $uselast.is(':checked') ) || srows.length !== numrows || crows.length !== numrows) {
+			alert("Not all columns are the same length!\nTry again...");
+			return false;
+		}
+
+		var lcnt = 0;
+
+		var blanks = $blanks.val() || 0;
+		for(var i = 0; i < blanks; i++) {
+			$("<div>").addClass("label").html("&nbsp;").appendTo($contentdiv);
+			lcnt++;
+			if(lcnt > 0 && lcnt % 30 === 0)
+				$("<div>").addClass("page-break").html("<hr>").appendTo($contentdiv);
+		}
+
+		var start_row = ($skip1st.is(":checked")) ? 1 : 0;
+		for(var i = start_row; i < numrows; i++) {
+			var label_str = frows[i];
+			if($uselast.is(':checked') )
+				label_str += " " + lrows[i]
+			label_str += "<br />" + srows[i] + "<br />" + crows[i];
+			var $label_wrapper = $("<div>").addClass("label-wrapper").appendTo($contentdiv);
+			var $size_div = $("<div>").addClass("size-control-div").addClass("no-print").prop('id', "sc-" + i);
+			$("<input>").prop('type', "button").addClass("size-control-button").val("+").appendTo($size_div);
+			$("<br>").appendTo($size_div);
+			$("<input>").prop('type', "button").addClass("size-control-button").val("0").appendTo($size_div);
+			$("<br>").appendTo($size_div);
+			$("<input>").prop('type', "button").addClass("size-control-button").val("-").appendTo($size_div);
+			var $label_div = $("<div>").addClass("label").css('font-size', $fontsize.val() + "px").prop('id', "label-" + i);
+			$label_div.appendTo($label_wrapper);
+			$size_div.appendTo($label_wrapper);
+			$label_div.append(label_str);
+
+			lcnt++;
+			if(lcnt > 0 && lcnt % 30 === 0)
+				$("<div>").addClass("page-break").html("<hr>").appendTo($contentdiv);
+		}
+		$("<div>").addClass("page-break").html("<hr>").appendTo($contentdiv);
+	});
+
+	$contentdiv.on('click', 'input.size-control-button', function(event) {
+		$this = $(this);
+		var mode = ($this.val() == "+") ? 1 : -1;
+		var id = $this.parent("div.size-control-div").prop('id').substr(3);
+		$label = $('#label-' + id);
+		if($this.val() == "0") {
+			$label.css('font-size', $fontsize.val() + "px");
+			$label.css('padding-top', ".125in");
+			$label.css('height', ".875in");
+			return;
+		}
+		var curr_size = $label.css('font-size');
+		curr_size = parseInt(curr_size.substr(0, curr_size.length - 2));
+		curr_size += mode;
+		$label.css('font-size', curr_size + "px");
+		$label.css('padding-top', .125 + .025 * (19 - curr_size) + "in");
+		$label.css('height', .875 - .025 * (19 - curr_size) + "in");
+	});
+	$contentdiv.on('mouseenter', 'div.label-wrapper', function(event) {
+		$(this).find('div.size-control-div').fadeTo(150, 1);
+	});
+	$contentdiv.on('mouseleave', 'div.label-wrapper', function(event) {
+		$(this).find('div.size-control-div').fadeTo(300, 0.2);
+	});
+	
+	function textarea_to_array($textarea) {
+		return $textarea.val().trim().replace(/\r\n/g, "\n").split("\n");
+	}
+
+	var DEBUG = window.location.href.indexOf("#DEBUG");
+	if(DEBUG != -1) {
+		var ffname = [
+			'Joe', 'George', 'Ralph', 'Vincent', 'Debbie', 'Elena', 'Jerri', 'Flo',
+			'Allegra', 'Eileen', 'Pearl', 'Libbie', 'Shanita', 'Kai', 'Jane',
+			'Enoch', 'Giuseppe', 'Azucena', 'Justin', 'Kelly', 'Daniel', 'Lucile',
+			'Voncile', 'Margot', 'Carmelita', 'Lien', 'Dolly', 'Corrinne',
+			'Esther', 'Sue', 'Kyra', 'Loree', 'Jesus', 'Mari', 'Jeanne', 'Lahoma',
+			'Fae', 'Ona', 'Margart', 'Mirella', 'Steven', 'Neal', 'Marcela',
+			'Eddie', 'Coleen', 'Phillip', 'Myrtis', 'Molly', 'Lincoln', 'Tambra',
+			'Stanley'
+		];
+
+		var flname = [
+			'Brown', 'Smith', 'Smythe', 'Fergus', 'Urquart', 'Bandanowitcz',
+			'Snerd', 'LaTullipe', 'Smegead', 'McGonigal', 'Gries', 'Melendy',
+			'Every', 'Palmer', 'Brisker', 'Buchler', 'Husman', 'Mathisen',
+			'Bitton', 'Tawil', 'Wilkerson', 'Pollack', 'Chau', 'Guilford',
+			'Mickelson', 'Auyeung', 'Compton', 'Scanlon', 'Hasson', 'Kubrick'
+		];
+
+		var fstreetname = [
+			'Colonial Edge', 'High Pine Farm', 'Merry Zephyr Villas',
+			'Burning Meadow', 'Dewy Cloud By-pass', 'Lazy Pony Pathway',
+			'Green Beacon Harbour', 'Jagged Oak Autoroute', 'Stony Leaf Key',
+			'Noble Bluff Towers', 'Iron Lagoon Street', 'Blue Treasure Line',
+			'Foggy Barn Wynd', 'Rocky Spring Way', 'Bright Terrace',
+			'Rustic Prairie Heath', 'Indian Subdivision', 'Grand Beach',
+			'Sunny Brook Turnabout', 'Tawny Loop', 'Middle Hickory Island',
+			'Clear Green', 'Velvet Panda Boulevard', 'Crystal Butterfly Pines',
+			'Old Estates', 'Sleepy Anchor Common', 'Hazy Pioneer Close',
+			'Lost Vista', 'Gentle Lake Corners', 'Harvest Nectar Via',
+			'Golden Willow Inlet', 'Quaking Ridge', 'Round Forest Round',
+			'Cinder Vale', 'Red Dale Thicket'
+		];
+
+		var ftownname = [
+			'Perth', 'Top of the World', 'Yorkton', 'Scant City', 'Indialantic',
+			'Canmore', 'Cheek', 'Scappoose', 'Tin Top', 'Indian Arrow',
+			'Bullhead City', 'Magnet', 'Welagamika', 'Springside', 'Four Locks',
+			'Latexo', 'Fish Rock', 'Recovery', 'Halbrite', 'Aylesbury',
+			'Hill-N-Dale', 'Kennedy', 'Osoyoos', 'Stonehenge', 'Wood Trap',
+			'Second Cliff', 'Pelican', 'Basket', 'Threelinks', 'Southpark',
+			'Red Boiling Springs', 'Twain Harte', 'Moosup', 'Bar Nunn',
+			'Spring Lick', 'New York City'
+		];
+
+		var fstatename = [
+			'MO', 'LA', 'IN', 'AK', 'FL', 'QC', 'MN', 'LA', 'IL', 'TN', 'ID', 'KS',
+			'TN', 'AR', 'CA', 'SC', 'CO', 'WI', 'ID', 'NJ', 'NF', 'ID', 'TN', 'WI',
+			'PE', 'IN', 'WV', 'NY', 'FL', 'UT', 'AL', 'NH', 'VT', 'WI', 'WV'
+		];
+
+		var dcnt = window.location.href.substring(DEBUG + 6);
+		dcnt = (isNumber(dcnt)) ? dcnt : 30;
+		var fdata = "",
+			ldata = "",
+			adata = "",
+			cszdata = "";
+		
+		for(var i = 0; i < dcnt; i++) {
+			fdata += ffname[Math.floor(Math.random() * ffname.length)] + "\n";
+			ldata += flname[Math.floor(Math.random() * flname.length)] + "\n";
+			adata += Math.floor(Math.random() * 5000).toString() + " " + fstreetname[Math.floor(Math.random() * fstreetname.length)] + "\n";
+			cszdata += ftownname[Math.floor(Math.random() * ftownname.length)] + ", ";
+			cszdata += fstatename[Math.floor(Math.random() * fstatename.length)] + " ";
+			var rndzip = Math.floor(Math.random() * 99999);
+			rndzip = Array(6 - rndzip.toString().length).join("0") + rndzip;
+			cszdata += rndzip + "\n";
+		}
+		$fdata.val(fdata);
+		$ldata.val(ldata);
+		$sdata.val(adata);
+		$idata.val(cszdata);
+	}
+});
+		</script>
+	</head>
+	<body>
+	<div id="inputdiv">
+		<table style="width: 100%;">
+			<tr>
+				<td>
+					<h1 style="text-align: center;">5160 Label-O-Matic&trade;</h1>
+					<hr>
+				</td>
+			</tr>
+		</table>
+		<table style="width: 100%;">
+			<tr>
+				<th>First Name</th>
+				<th><input id="checkbox-use-lastname" type="checkbox" /><label for="checkbox-use-lastname">Use Last Name</label></th>
+				<th>Street Address</th>
+				<th></th>
+				<th>City, State, Zip (<a id="clear-button" href="#">clear</a>)</th>
+				<th></th>
+				<th>paste here</th>
+			</tr>
+			<tr>
+				<td class="full-column"><textarea id="fdata" class="input-textarea"></textarea></td>
+				<td class="full-column"><textarea id="ldata" class="input-textarea"></textarea></td>
+				<td class="full-column"><textarea id="sdata" class="input-textarea"></textarea></td>
+				<td class="spacer-column"></td>
+				<td class="full-column"><textarea id="cszdata" class="input-textarea" readonly></textarea></td>
+				<td class="spacer-column"><input type="button" id="add-button" class="append-button" value="<<" />
+				<td class="full-column"><textarea id="idata" class="input-textarea"></textarea></td>
+			</tr>
+		</table>
+		<table style="width: 100%; text-align: center;">
+			<tr>
+				<td><input id="checkbox-skip-1st" type="checkbox" /><label for="checkbox-skip-1st">Skip first row</label></td>
+				<td>Start with <input id="blanks" type="number" min="0" max="29" value="0" /> blank labels</td>
+				<td>Font Size <input id="fontsize" type="number" min="8" max="29" value="16" />px</td>
+				<td><input id="generate-button" type="button" value="Generate Labels" /></td>
+			</tr>
+		</table>
+	</div>
+	<div id="instructiondiv">
+		<hr>
+		<b>Printing instructions:</b>
+		<ol>
+			<li class="no-print">To print these instructions, print before clicking <span class="fake-button">Generate Labels</span></li>
+			<li>Paste data into the correct columns</li>
+			<li>Click <span class="fake-button">Generate Labels</span></li>
+			<li>Press Ctrl-P to open the print screen</li>
+			<li>Make sure that the Layout option is in Portrait mode</li>
+			<li>Disable the "Headers and Footers" option</li>
+			<li>Make sure that the correct printer is selected.  If it isn't, click <span class="fake-button">Change...</span> and select the correct one</li>
+			<li>Put labels in the printer, and make sure that they are loaded correctly</li>
+			<li>Click <span class="fake-button">Print</span></li>
+		</ol>
+		<hr>
+	</div>
+	<div id="contentdiv"></div>
+	</body>
+</html>
